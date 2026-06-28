@@ -6,629 +6,189 @@
 <title>VMI Intelligence — Motul</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  /* ── Design tokens ─────────────────────────────────────────────────────── */
   :root {
-    --bg:        #0a0c10;
-    --surface:   #111318;
-    --surface2:  #181b22;
-    --border:    #1e2230;
-    --accent:    #e8b84b;       /* jaune Motul */
-    --accent2:   #00c9a7;       /* teal prévision */
-    --danger:    #f05252;
-    --warn:      #f59e0b;
-    --ok:        #22c55e;
-    --text:      #e8eaf0;
-    --muted:     #6b7280;
-    --font-head: 'DM Sans', system-ui, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --radius:    8px;
+    --bg:#0a0c10;--surface:#111318;--surface2:#181b22;--border:#1e2230;
+    --accent:#e8b84b;--accent2:#00c9a7;--danger:#f05252;--warn:#f59e0b;
+    --ok:#22c55e;--text:#e8eaf0;--muted:#6b7280;
+    --font-head:'DM Sans',system-ui,sans-serif;
+    --font-mono:'JetBrains Mono',monospace;--radius:8px;
   }
-
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-head);
-    font-size: 14px;
-    line-height: 1.6;
-    min-height: 100vh;
-  }
-
-  /* ── Header ──────────────────────────────────────────────────────────────── */
-  header {
-    border-bottom: 1px solid var(--border);
-    padding: 0 32px;
-    height: 56px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(10,12,16,0.95);
-    backdrop-filter: blur(8px);
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-weight: 700;
-    font-size: 16px;
-    letter-spacing: -0.02em;
-  }
-
-  .logo-dot {
-    width: 8px; height: 8px;
-    background: var(--accent);
-    border-radius: 50%;
-    box-shadow: 0 0 12px var(--accent);
-  }
-
-  .logo span { color: var(--accent); }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .api-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    transition: background 0.3s;
-  }
-  .status-dot.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-  .status-dot.err { background: var(--danger); }
-
-  /* ── Layout principal ────────────────────────────────────────────────────── */
-  main {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 32px 32px 64px;
-  }
-
-  /* ── Zone d'upload ───────────────────────────────────────────────────────── */
-  .upload-zone {
-    border: 1.5px dashed var(--border);
-    border-radius: 12px;
-    padding: 40px;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-    margin-bottom: 32px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .upload-zone:hover, .upload-zone.dragover {
-    border-color: var(--accent);
-    background: rgba(232,184,75,0.04);
-  }
-
-  .upload-zone.loading {
-    border-color: var(--accent2);
-    background: rgba(0,201,167,0.04);
-    pointer-events: none;
-  }
-
-  .upload-icon {
-    font-size: 36px;
-    margin-bottom: 12px;
-    display: block;
-  }
-
-  .upload-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .upload-sub {
-    color: var(--muted);
-    font-size: 13px;
-    margin-bottom: 20px;
-  }
-
-  .upload-input { display: none; }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border-radius: var(--radius);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: opacity 0.15s, transform 0.1s;
-  }
-  .btn:hover { opacity: 0.85; }
-  .btn:active { transform: scale(0.98); }
-  .btn-primary { background: var(--accent); color: #000; }
-  .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-  }
-  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-
-  .progress-bar {
-    position: absolute;
-    bottom: 0; left: 0;
-    height: 3px;
-    background: var(--accent2);
-    width: 0%;
-    transition: width 0.3s;
-    border-radius: 0 3px 0 0;
-  }
-
-  /* ── Format CSV helper ───────────────────────────────────────────────────── */
-  .csv-helper {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 16px 20px;
-    margin-bottom: 32px;
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
-  }
-
-  .csv-helper-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
-
-  .csv-helper pre {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--accent2);
-    background: var(--bg);
-    padding: 10px 14px;
-    border-radius: 6px;
-    margin-top: 8px;
-    overflow-x: auto;
-    line-height: 1.8;
-  }
-
-  /* ── KPIs ────────────────────────────────────────────────────────────────── */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-
-  .kpi-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 24px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .kpi-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 2px;
-  }
-  .kpi-card.accent::before  { background: var(--accent); }
-  .kpi-card.teal::before    { background: var(--accent2); }
-  .kpi-card.danger::before  { background: var(--danger); }
-  .kpi-card.warn::before    { background: var(--warn); }
-
-  .kpi-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin-bottom: 8px;
-  }
-
-  .kpi-value {
-    font-size: 32px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    margin-bottom: 6px;
-  }
-  .kpi-card.accent .kpi-value  { color: var(--accent); }
-  .kpi-card.teal .kpi-value    { color: var(--accent2); }
-  .kpi-card.danger .kpi-value  { color: var(--danger); }
-  .kpi-card.warn .kpi-value    { color: var(--warn); }
-
-  .kpi-sub { font-size: 12px; color: var(--muted); }
-
-  /* ── Section titre ───────────────────────────────────────────────────────── */
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .section-title {
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-  }
-
-  .section-sub {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 2px;
-  }
-
-  /* ── Sélecteur article ───────────────────────────────────────────────────── */
-  .article-selector {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 24px;
-  }
-
-  .article-btn {
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-size: 12px;
-    font-weight: 600;
-    font-family: var(--font-mono);
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .article-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .article-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #000;
-  }
-
-  .article-btn .risk-badge {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  /* ── Panneau article ─────────────────────────────────────────────────────── */
-  .article-panel {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 20px;
-    margin-bottom: 32px;
-  }
-
-  .chart-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 24px;
-  }
-
-  .chart-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-
-  .chart-sub {
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 20px;
-  }
-
-  .chart-wrap {
-    position: relative;
-    height: 260px;
-  }
-
-  /* ── Panneau recommandations ─────────────────────────────────────────────── */
-  .reco-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .reco-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px 20px;
-  }
-
-  .reco-label {
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .reco-label .tag {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: var(--surface2);
-    color: var(--accent);
-    border: 1px solid var(--border);
-  }
-
-  .reco-value {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--accent);
-    line-height: 1;
-    margin-bottom: 4px;
-  }
-
-  .reco-range {
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    margin-bottom: 8px;
-  }
-
-  .reco-interp {
-    font-size: 12px;
-    color: var(--text);
-    padding: 8px 10px;
-    background: var(--surface2);
-    border-radius: 6px;
-    border-left: 2px solid var(--accent2);
-  }
-
-  /* ── Jauge de risque ─────────────────────────────────────────────────────── */
-  .risk-gauge {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px 20px;
-  }
-
-  .gauge-track {
-    height: 6px;
-    background: var(--border);
-    border-radius: 3px;
-    margin: 12px 0 8px;
-    overflow: hidden;
-  }
-
-  .gauge-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.6s ease;
-  }
-
-  .gauge-labels {
-    display: flex;
-    justify-content: space-between;
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  .risk-score {
-    font-size: 36px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.03em;
-  }
-
-  .risk-niveau {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 4px;
-    display: inline-block;
-    margin-top: 4px;
-  }
-
-  /* ── Alerte stock ────────────────────────────────────────────────────────── */
-  .alerte-stock {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: var(--radius);
-    font-size: 12px;
-  }
-
-  .alerte-stock.ok     { background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.2); }
-  .alerte-stock.warn   { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); }
-  .alerte-stock.danger { background: rgba(240,82,82,0.08); border: 1px solid rgba(240,82,82,0.2); }
-
-  /* ── Tableau classement ──────────────────────────────────────────────────── */
-  .tableau-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 32px;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    background: var(--surface2);
-    border-bottom: 1px solid var(--border);
-  }
-
-  tbody tr {
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    transition: background 0.12s;
-  }
-
-  tbody tr:last-child { border-bottom: none; }
-  tbody tr:hover { background: rgba(232,184,75,0.04); }
-
-  tbody td {
-    padding: 12px 16px;
-    font-size: 13px;
-    vertical-align: middle;
-  }
-
-  .matnr-mono {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--accent);
-    font-weight: 500;
-  }
-
-  .badge {
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: var(--font-mono);
-  }
-
-  .badge.rouge   { background: rgba(240,82,82,0.15); color: var(--danger); }
-  .badge.orange  { background: rgba(245,158,11,0.15); color: var(--warn); }
-  .badge.vert    { background: rgba(34,197,94,0.15); color: var(--ok); }
-
-  /* ── État vide ───────────────────────────────────────────────────────────── */
-  .empty-state {
-    text-align: center;
-    padding: 80px 32px;
-    color: var(--muted);
-    display: none;
-  }
-
-  .empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
-
-  /* ── Loader ──────────────────────────────────────────────────────────────── */
-  .loader-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(10,12,16,0.8);
-    backdrop-filter: blur(4px);
-    z-index: 999;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-  }
-
-  .loader-overlay.visible { display: flex; }
-
-  .spinner {
-    width: 40px; height: 40px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  .loader-text {
-    font-size: 14px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  /* ── Toast ───────────────────────────────────────────────────────────────── */
-  .toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 1000;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .toast {
-    padding: 12px 18px;
-    border-radius: var(--radius);
-    font-size: 13px;
-    font-weight: 500;
-    min-width: 280px;
-    border: 1px solid;
-    animation: slideIn 0.2s ease;
-  }
-
-  @keyframes slideIn {
-    from { transform: translateX(20px); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-
-  .toast.success { background: rgba(34,197,94,0.12); border-color: var(--ok); color: var(--ok); }
-  .toast.error   { background: rgba(240,82,82,0.12); border-color: var(--danger); color: var(--danger); }
-  .toast.info    { background: rgba(232,184,75,0.12); border-color: var(--accent); color: var(--accent); }
-
-  /* ── Divider ─────────────────────────────────────────────────────────────── */
-  .divider { height: 1px; background: var(--border); margin: 32px 0; }
-
-  /* ── Responsive ──────────────────────────────────────────────────────────── */
-  @media (max-width: 900px) {
-    main { padding: 20px 16px; }
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .article-panel { grid-template-columns: 1fr; }
-  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:var(--font-head);font-size:14px;line-height:1.6;min-height:100vh;}
+
+  /* Header */
+  header{border-bottom:1px solid var(--border);padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;background:rgba(10,12,16,0.95);backdrop-filter:blur(8px);}
+  .logo{display:flex;align-items:center;gap:12px;font-weight:700;font-size:16px;letter-spacing:-0.02em;}
+  .logo-dot{width:8px;height:8px;background:var(--accent);border-radius:50%;box-shadow:0 0 12px var(--accent);}
+  .logo span{color:var(--accent);}
+  .header-right{display:flex;align-items:center;gap:12px;}
+  .api-status{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);font-family:var(--font-mono);}
+  .status-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background 0.3s;}
+  .status-dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok);}
+  .status-dot.err{background:var(--danger);}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:opacity 0.15s,transform 0.1s;font-family:var(--font-head);}
+  .btn:hover{opacity:0.85;}.btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--accent);color:#000;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text);}
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-teal{background:var(--accent2);color:#000;}
+  .btn-sm{padding:6px 14px;font-size:12px;}
+
+  /* Main */
+  main{max-width:1400px;margin:0 auto;padding:32px 32px 64px;}
+
+  /* Upload */
+  .upload-zone{border:1.5px dashed var(--border);border-radius:12px;padding:40px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;margin-bottom:24px;position:relative;overflow:hidden;}
+  .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(232,184,75,0.04);}
+  .upload-zone.loading{border-color:var(--accent2);pointer-events:none;}
+  .upload-icon{font-size:36px;margin-bottom:12px;display:block;}
+  .upload-title{font-size:18px;font-weight:600;margin-bottom:8px;}
+  .upload-sub{color:var(--muted);font-size:13px;margin-bottom:20px;}
+  .upload-input{display:none;}
+  .progress-bar{position:absolute;bottom:0;left:0;height:3px;background:var(--accent2);width:0%;transition:width 0.3s;border-radius:0 3px 0 0;}
+
+  /* CSV helper */
+  .csv-helper{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:32px;display:flex;align-items:flex-start;gap:16px;}
+  .csv-helper pre{font-family:var(--font-mono);font-size:11px;color:var(--accent2);background:var(--bg);padding:10px 14px;border-radius:6px;margin-top:8px;overflow-x:auto;line-height:1.8;}
+
+  /* Warning banner */
+  .warning-banner{display:none;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;font-size:13px;color:var(--warn);}
+  .warning-banner.visible{display:block;}
+
+  /* KPIs */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px;position:relative;overflow:hidden;}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:2px;}
+  .kpi-card.accent::before{background:var(--accent);}
+  .kpi-card.teal::before{background:var(--accent2);}
+  .kpi-card.danger::before{background:var(--danger);}
+  .kpi-card.warn::before{background:var(--warn);}
+  .kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;}
+  .kpi-value{font-size:32px;font-weight:700;letter-spacing:-0.03em;line-height:1;margin-bottom:6px;}
+  .kpi-card.accent .kpi-value{color:var(--accent);}
+  .kpi-card.teal .kpi-value{color:var(--accent2);}
+  .kpi-card.danger .kpi-value{color:var(--danger);}
+  .kpi-card.warn .kpi-value{color:var(--warn);}
+  .kpi-sub{font-size:12px;color:var(--muted);}
+
+  /* Section */
+  .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);}
+  .section-title{font-size:16px;font-weight:600;letter-spacing:-0.01em;}
+  .section-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+
+  /* Article selector */
+  .article-selector{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px;}
+  .article-btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;font-family:var(--font-mono);border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px;}
+  .article-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .article-btn.active{background:var(--accent);border-color:var(--accent);color:#000;}
+  .article-btn .risk-badge{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+
+  /* Article panel */
+  .article-panel{display:grid;grid-template-columns:1fr 320px;gap:20px;margin-bottom:32px;}
+  .chart-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px;}
+  .chart-title{font-size:14px;font-weight:600;margin-bottom:4px;}
+  .chart-sub{font-size:12px;color:var(--muted);margin-bottom:20px;}
+  .chart-wrap{position:relative;height:260px;}
+
+  /* Reco panel */
+  .reco-panel{display:flex;flex-direction:column;gap:12px;}
+  .reco-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+  .reco-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .reco-label .tag{font-family:var(--font-mono);font-size:10px;padding:2px 6px;border-radius:4px;background:var(--surface2);color:var(--accent);border:1px solid var(--border);}
+  .reco-value{font-size:28px;font-weight:700;letter-spacing:-0.02em;color:var(--accent);line-height:1;margin-bottom:4px;}
+  .reco-range{font-size:11px;color:var(--muted);font-family:var(--font-mono);margin-bottom:8px;}
+  .reco-interp{font-size:12px;color:var(--text);padding:8px 10px;background:var(--surface2);border-radius:6px;border-left:2px solid var(--accent2);}
+
+  /* Risk gauge */
+  .risk-gauge{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+  .gauge-track{height:6px;background:var(--border);border-radius:3px;margin:12px 0 8px;overflow:hidden;}
+  .gauge-fill{height:100%;border-radius:3px;transition:width 0.6s ease;}
+  .gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);font-family:var(--font-mono);}
+  .risk-score{font-size:36px;font-weight:700;line-height:1;letter-spacing:-0.03em;}
+  .risk-niveau{font-size:12px;font-weight:600;padding:3px 8px;border-radius:4px;display:inline-block;margin-top:4px;}
+
+  /* Risk detail */
+  .risk-detail{margin-top:12px;display:flex;flex-direction:column;gap:6px;}
+  .risk-bar-row{display:flex;align-items:center;gap:8px;font-size:11px;}
+  .risk-bar-label{color:var(--muted);width:80px;flex-shrink:0;}
+  .risk-bar-track{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;}
+  .risk-bar-fill{height:100%;border-radius:2px;transition:width 0.5s;}
+  .risk-bar-val{color:var(--muted);font-family:var(--font-mono);font-size:10px;width:40px;text-align:right;}
+
+  /* Alert stock */
+  .alerte-stock{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--radius);font-size:12px;}
+  .alerte-stock.ok{background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);}
+  .alerte-stock.warn{background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);}
+  .alerte-stock.danger{background:rgba(240,82,82,0.08);border:1px solid rgba(240,82,82,0.2);}
+
+  /* Export ZMRKO */
+  .export-section{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px 24px;margin-bottom:32px;}
+  .export-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .export-preview{background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+  .export-preview table{width:100%;border-collapse:collapse;}
+  .export-preview th{padding:8px 14px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);font-family:var(--font-mono);}
+  .export-preview td{padding:10px 14px;font-size:12px;font-family:var(--font-mono);border-bottom:1px solid var(--border);}
+  .export-preview tr:last-child td{border-bottom:none;}
+  .export-preview tr:hover td{background:rgba(232,184,75,0.04);}
+  .col-matnr{color:var(--accent);}
+  .col-allw{color:var(--accent2);}
+  .col-expam{color:var(--text);}
+  .col-stock .badge{padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;}
+  .badge-rouge{background:rgba(240,82,82,0.15);color:var(--danger);}
+  .badge-orange{background:rgba(245,158,11,0.15);color:var(--warn);}
+  .badge-vert{background:rgba(34,197,94,0.15);color:var(--ok);}
+
+  /* Tableau classement */
+  .tableau-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:32px;}
+  table{width:100%;border-collapse:collapse;}
+  thead th{padding:12px 16px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);}
+  tbody tr{border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;}
+  tbody tr:last-child{border-bottom:none;}
+  tbody tr:hover{background:rgba(232,184,75,0.04);}
+  tbody td{padding:12px 16px;font-size:13px;vertical-align:middle;}
+  .matnr-mono{font-family:var(--font-mono);font-size:12px;color:var(--accent);font-weight:500;}
+  .badge{padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:var(--font-mono);}
+  .badge.rouge{background:rgba(240,82,82,0.15);color:var(--danger);}
+  .badge.orange{background:rgba(245,158,11,0.15);color:var(--warn);}
+  .badge.vert{background:rgba(34,197,94,0.15);color:var(--ok);}
+
+  .divider{height:1px;background:var(--border);margin:32px 0;}
+
+  /* Loader */
+  .loader-overlay{display:none;position:fixed;inset:0;background:rgba(10,12,16,0.8);backdrop-filter:blur(4px);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+  .loader-overlay.visible{display:flex;}
+  .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loader-text{font-size:14px;color:var(--muted);font-family:var(--font-mono);}
+
+  /* Toast */
+  .toast-container{position:fixed;bottom:24px;right:24px;z-index:1000;display:flex;flex-direction:column;gap:8px;}
+  .toast{padding:12px 18px;border-radius:var(--radius);font-size:13px;font-weight:500;min-width:280px;border:1px solid;animation:slideIn 0.2s ease;}
+  @keyframes slideIn{from{transform:translateX(20px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+  .toast.success{background:rgba(34,197,94,0.12);border-color:var(--ok);color:var(--ok);}
+  .toast.error{background:rgba(240,82,82,0.12);border-color:var(--danger);color:var(--danger);}
+  .toast.info{background:rgba(232,184,75,0.12);border-color:var(--accent);color:var(--accent);}
+  .toast.warn{background:rgba(245,158,11,0.12);border-color:var(--warn);color:var(--warn);}
+
+  @media(max-width:900px){main{padding:20px 16px;}.kpi-grid{grid-template-columns:repeat(2,1fr);}.article-panel{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 
-<!-- ── Header ──────────────────────────────────────────────────────────────── -->
 <header>
-  <div class="logo">
-    <div class="logo-dot"></div>
-    VMI <span>Intelligence</span>
-  </div>
+  <div class="logo"><div class="logo-dot"></div>VMI <span>Intelligence</span></div>
   <div class="header-right">
     <div class="api-status">
       <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Connexion API…</span>
+      <span id="statusText">Connexion…</span>
     </div>
-    <button class="btn btn-ghost" onclick="chargerDemo()" style="font-size:12px;padding:6px 14px;">
-      ▶ Démo
-    </button>
+    <button class="btn btn-ghost btn-sm" onclick="chargerDemo()">▶ Démo</button>
   </div>
 </header>
 
-<!-- ── Main ────────────────────────────────────────────────────────────────── -->
 <main>
 
   <!-- Upload -->
@@ -637,10 +197,7 @@
        ondragleave="handleDragLeave(event)" onclick="document.getElementById('fileInput').click()">
     <span class="upload-icon">📂</span>
     <div class="upload-title">Déposez votre export RKWA ici</div>
-    <div class="upload-sub">
-      Fichier CSV exporté depuis SAP · Transaction SE16 / table RKWA<br>
-      ou cliquez pour parcourir
-    </div>
+    <div class="upload-sub">Fichier CSV ou XLSX exporté depuis SAP · Transaction SE16 / table RKWA<br>ou cliquez pour parcourir</div>
     <button class="btn btn-primary" onclick="event.stopPropagation();document.getElementById('fileInput').click()">
       Choisir un fichier CSV ou XLSX
     </button>
@@ -648,21 +205,22 @@
     <div class="progress-bar" id="progressBar"></div>
   </div>
 
-  <!-- Format CSV -->
+  <!-- Format helper -->
   <div class="csv-helper">
-    <div class="csv-helper-icon">ℹ️</div>
+    <div style="font-size:20px;flex-shrink:0;margin-top:2px;">ℹ️</div>
     <div>
-      <strong style="font-size:13px;">Format attendu</strong>
-      <span style="color:var(--muted);font-size:12px;margin-left:8px;">séparateur point-virgule, en-tête sur la 1ère ligne</span>
-      <pre>MATNR;LIFNR;BUDAT;MENGE;WERTN
-MAT-001;FOURN-001;20240101;45.5;568.75
-MAT-001;FOURN-001;20240108;38.0;475.00
-MAT-002;FOURN-002;20240101;12.0;540.00</pre>
+      <strong style="font-size:13px;">Formats acceptés</strong>
+      <span style="color:var(--muted);font-size:12px;margin-left:8px;">Export SE16 SAP (XLSX) ou CSV avec séparateur point-virgule</span>
+      <pre>MATNR;LIFNR;BUDAT;MENGE;WERTN          ← CSV synthétique
+Article;Fournisseur;Date comptable;Quantité prélevée pour liquidation;Montant  ← Export SAP réel</pre>
     </div>
   </div>
 
-  <!-- Dashboard (caché jusqu'à analyse) -->
+  <!-- Dashboard -->
   <div id="dashboard" style="display:none;">
+
+    <!-- Avertissements données courtes -->
+    <div class="warning-banner" id="warningBanner"></div>
 
     <!-- KPIs -->
     <div class="kpi-grid">
@@ -688,75 +246,81 @@ MAT-002;FOURN-002;20240101;12.0;540.00</pre>
       </div>
     </div>
 
-    <!-- Sélecteur article -->
+    <!-- Export ZMRKO -->
+    <div class="export-section">
+      <div class="export-header">
+        <div>
+          <div class="section-title">Recommandations ZMRKO</div>
+          <div class="section-sub">Valeurs PA_ALLW et PA_EXPAM calculées par l'IA — prêtes à saisir dans la transaction</div>
+        </div>
+        <button class="btn btn-teal btn-sm" onclick="exporterZMRKO()">
+          ⬇ Exporter pour ZMRKO (.csv)
+        </button>
+      </div>
+      <div class="export-preview">
+        <table>
+          <thead>
+            <tr>
+              <th>MATNR</th>
+              <th>Description</th>
+              <th>PA_ALLW (%)</th>
+              <th>Interprétation</th>
+              <th>PA_EXPAM (€)</th>
+              <th>Fourchette €</th>
+              <th>Stock</th>
+              <th>Risque</th>
+            </tr>
+          </thead>
+          <tbody id="exportTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Analyse par article -->
     <div class="section-header">
       <div>
         <div class="section-title">Analyse par article</div>
-        <div class="section-sub">Sélectionnez un article pour voir sa prévision et ses recommandations ZMRKO</div>
+        <div class="section-sub">Sélectionnez un article pour voir sa prévision détaillée</div>
       </div>
     </div>
     <div class="article-selector" id="articleSelector"></div>
 
-    <!-- Panneau article -->
     <div class="article-panel" id="articlePanel" style="display:none;">
-
-      <!-- Graphique -->
       <div class="chart-card">
         <div class="chart-title" id="chartTitle">—</div>
         <div class="chart-sub" id="chartSub">—</div>
-        <div class="chart-wrap">
-          <canvas id="forecastChart"></canvas>
-        </div>
+        <div class="chart-wrap"><canvas id="forecastChart"></canvas></div>
       </div>
-
-      <!-- Recommandations -->
       <div class="reco-panel">
-
-        <!-- PA_ALLW -->
         <div class="reco-card">
-          <div class="reco-label">
-            Tolérance recommandée
-            <span class="tag">PA_ALLW</span>
-          </div>
+          <div class="reco-label">Tolérance recommandée <span class="tag">PA_ALLW</span></div>
           <div class="reco-value" id="recoAllw">—</div>
           <div class="reco-range" id="recoAllwRange">—</div>
           <div class="reco-interp" id="recoAllwInterp">—</div>
         </div>
-
-        <!-- PA_EXPAM -->
         <div class="reco-card">
-          <div class="reco-label">
-            Montant attendu
-            <span class="tag">PA_EXPAM</span>
-          </div>
+          <div class="reco-label">Montant attendu <span class="tag">PA_EXPAM</span></div>
           <div class="reco-value" id="recoExpam">—</div>
           <div class="reco-range" id="recoExpamRange">—</div>
           <div class="reco-interp" id="recoExpamInterp">—</div>
         </div>
-
-        <!-- Alerte stock -->
         <div id="alerteStock" class="alerte-stock ok">
           <span id="alerteIcon">✅</span>
           <span id="alerteMsg">—</span>
         </div>
-
-        <!-- Risque global -->
         <div class="risk-gauge">
           <div class="reco-label">Score de risque global</div>
           <div style="display:flex;align-items:baseline;gap:8px;">
             <div class="risk-score" id="riskScore">—</div>
             <span class="risk-niveau" id="riskNiveau">—</span>
           </div>
-          <div class="gauge-track">
-            <div class="gauge-fill" id="gaugeFill" style="width:0%"></div>
-          </div>
-          <div class="gauge-labels">
-            <span>0 — Faible</span>
-            <span>50 — Modéré</span>
-            <span>100 — Élevé</span>
-          </div>
+          <div class="gauge-track"><div class="gauge-fill" id="gaugeFill" style="width:0%"></div></div>
+          <div class="gauge-labels"><span>0 — Faible</span><span>50 — Modéré</span><span>100 — Élevé</span></div>
+          <!-- Détail score -->
+          <div class="risk-detail" id="riskDetail"></div>
         </div>
-
       </div>
     </div>
 
@@ -772,79 +336,57 @@ MAT-002;FOURN-002;20240101;12.0;540.00</pre>
     <div class="tableau-wrap">
       <table>
         <thead>
-          <tr>
-            <th>#</th>
-            <th>Article</th>
-            <th>Description</th>
-            <th>PA_ALLW</th>
-            <th>PA_EXPAM</th>
-            <th>Stock</th>
-            <th>Anomalies</th>
-            <th>Risque</th>
-          </tr>
+          <tr><th>#</th><th>Article</th><th>Description</th><th>PA_ALLW</th><th>PA_EXPAM</th><th>Stock</th><th>Anomalies</th><th>Risque</th></tr>
         </thead>
         <tbody id="tableauBody"></tbody>
       </table>
     </div>
 
-  </div><!-- /dashboard -->
-
+  </div>
 </main>
 
-<!-- Loader -->
 <div class="loader-overlay" id="loader">
   <div class="spinner"></div>
   <div class="loader-text" id="loaderText">Analyse en cours…</div>
 </div>
-
-<!-- Toasts -->
 <div class="toast-container" id="toasts"></div>
 
-<!-- ── JavaScript ──────────────────────────────────────────────────────────── -->
 <script>
-// ── Config ──────────────────────────────────────────────────────────────────
-// ⚠️  Remplacez cette URL par votre URL Render après déploiement
-// Exemple : const API_URL = "https://vmi-motul-api.onrender.com";
+// ⚠️ Remplacez par votre URL Railway après déploiement
 const API_URL = "https://vmi-motul-api-production.up.railway.app";
 
 let donneesActuelles = null;
 let chartInstance    = null;
-let articleActif     = null;
 
 // ── Utilitaires ──────────────────────────────────────────────────────────────
-
-function toast(msg, type = "info") {
+function toast(msg, type="info") {
   const el = document.createElement("div");
   el.className = `toast ${type}`;
   el.textContent = msg;
   document.getElementById("toasts").appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  setTimeout(() => el.remove(), 5000);
+}
+function loader(v, t="Analyse en cours…") {
+  document.getElementById("loader").classList.toggle("visible", v);
+  document.getElementById("loaderText").textContent = t;
+}
+function couleurRisque(s) {
+  return s >= 55 ? "#f05252" : s >= 25 ? "#f59e0b" : "#22c55e";
+}
+function badgeCssStock(n) {
+  return {CRITIQUE:"rouge",ATTENTION:"orange",OK:"vert"}[n]??"vert";
+}
+function iconeStock(n) {
+  return {CRITIQUE:"🔴",ATTENTION:"🟡",OK:"🟢"}[n]??"🟢";
+}
+function fmt(n, dec=2) {
+  return Number(n).toLocaleString("fr-FR",{minimumFractionDigits:dec,maximumFractionDigits:dec});
 }
 
-function loader(visible, texte = "Analyse en cours…") {
-  document.getElementById("loader").classList.toggle("visible", visible);
-  document.getElementById("loaderText").textContent = texte;
-}
-
-function couleurRisque(score) {
-  if (score >= 55) return "#f05252";
-  if (score >= 25) return "#f59e0b";
-  return "#22c55e";
-}
-
-function couleurCssStock(niveau) {
-  return { "CRITIQUE": "danger", "ATTENTION": "warn", "OK": "ok" }[niveau] ?? "ok";
-}
-
-function iconeStock(niveau) {
-  return { "CRITIQUE": "🔴", "ATTENTION": "🟡", "OK": "🟢" }[niveau] ?? "🟢";
-}
-
-// ── Status API ────────────────────────────────────────────────────────────────
-
+// ── API Status ────────────────────────────────────────────────────────────────
 async function checkAPI() {
   try {
-    const r = await fetch(`${API_URL}/`, { signal: AbortSignal.timeout(5000) });
+    const r = await fetch(`${API_URL}/`, {signal:AbortSignal.timeout(6000)});
     if (r.ok) {
       document.getElementById("statusDot").className = "status-dot ok";
       document.getElementById("statusText").textContent = "API connectée";
@@ -855,59 +397,37 @@ async function checkAPI() {
   }
 }
 
-// ── Upload & Analyse ──────────────────────────────────────────────────────────
-
-function handleDragOver(e) {
-  e.preventDefault();
-  document.getElementById("uploadZone").classList.add("dragover");
-}
-
-function handleDragLeave() {
-  document.getElementById("uploadZone").classList.remove("dragover");
-}
-
+// ── Upload ────────────────────────────────────────────────────────────────────
+function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragover"); }
+function handleDragLeave() { document.getElementById("uploadZone").classList.remove("dragover"); }
 function handleDrop(e) {
   e.preventDefault();
   document.getElementById("uploadZone").classList.remove("dragover");
-  const file = e.dataTransfer.files[0];
-  if (file) analyserFichier(file);
+  const f = e.dataTransfer.files[0]; if (f) analyserFichier(f);
 }
-
-function handleFile(e) {
-  const file = e.target.files[0];
-  if (file) analyserFichier(file);
-}
+function handleFile(e) { const f = e.target.files[0]; if (f) analyserFichier(f); }
 
 async function analyserFichier(file) {
-  if (!file.name.endsWith(".csv") && !file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+  const ext = file.name.toLowerCase();
+  if (!ext.endsWith(".csv") && !ext.endsWith(".xlsx") && !ext.endsWith(".xls")) {
     toast("Format accepté : .csv ou .xlsx", "error"); return;
-}
-
+  }
   loader(true, `Envoi de ${file.name}…`);
   document.getElementById("uploadZone").classList.add("loading");
   document.getElementById("progressBar").style.width = "30%";
-
   const fd = new FormData();
   fd.append("file", file);
-
   try {
     document.getElementById("progressBar").style.width = "60%";
-    const r = await fetch(`${API_URL}/api/analyze`, { method: "POST", body: fd });
+    const r = await fetch(`${API_URL}/api/analyze`, {method:"POST", body:fd});
     document.getElementById("progressBar").style.width = "90%";
-
-    if (!r.ok) {
-      const err = await r.json();
-      throw new Error(err.detail || "Erreur serveur");
-    }
-
+    if (!r.ok) { const err = await r.json(); throw new Error(err.detail||"Erreur serveur"); }
     const data = await r.json();
     document.getElementById("progressBar").style.width = "100%";
     afficherResultats(data);
-    toast(`✓ ${data.meta.nb_articles} articles analysés`, "success");
-
-  } catch (err) {
+    toast(`✓ ${data.meta.nb_articles} article(s) analysé(s)`, "success");
+  } catch(err) {
     toast(`Erreur : ${err.message}`, "error");
-    console.error(err);
   } finally {
     loader(false);
     document.getElementById("uploadZone").classList.remove("loading");
@@ -922,26 +442,55 @@ async function chargerDemo() {
     if (!r.ok) throw new Error("Erreur API démo");
     const data = await r.json();
     afficherResultats(data);
-    toast("Données de démo chargées", "info");
-  } catch (err) {
+    toast("Données de démo chargées (10 articles synthétiques)", "info");
+  } catch(err) {
     toast(`Erreur démo : ${err.message}`, "error");
-  } finally {
-    loader(false);
-  }
+  } finally { loader(false); }
 }
 
 // ── Affichage résultats ───────────────────────────────────────────────────────
-
 function afficherResultats(data) {
   donneesActuelles = data;
   const articles = Object.values(data.articles);
 
   // KPIs
-  document.getElementById("kpiArticles").textContent = data.meta.nb_articles;
-  document.getElementById("kpiSource").textContent   = data.meta.fichier;
-  document.getElementById("kpiAlertes").textContent  = data.meta.nb_alertes;
-  document.getElementById("kpiPrevision").textContent = data.meta.total_j30_units.toLocaleString("fr-FR", { maximumFractionDigits: 0 });
-  document.getElementById("kpiRisque").textContent   = data.meta.risque_max;
+  document.getElementById("kpiArticles").textContent  = data.meta.nb_articles;
+  document.getElementById("kpiSource").textContent    = data.meta.fichier;
+  document.getElementById("kpiAlertes").textContent   = data.meta.nb_alertes;
+  document.getElementById("kpiPrevision").textContent = fmt(data.meta.total_j30_units, 0);
+  document.getElementById("kpiRisque").textContent    = data.meta.risque_max;
+
+  // Avertissements données courtes
+  const warns = data.meta.avertissements || [];
+  const banner = document.getElementById("warningBanner");
+  if (warns.length > 0) {
+    banner.innerHTML = "⚠️ <strong>Données limitées détectées</strong><br>" +
+      warns.map(w => `• ${w}`).join("<br>");
+    banner.classList.add("visible");
+  } else {
+    banner.classList.remove("visible");
+  }
+
+  // Table export ZMRKO
+  const exportBody = document.getElementById("exportTableBody");
+  exportBody.innerHTML = "";
+  articles.forEach(art => {
+    const tr = document.createElement("tr");
+    const stockBadge = art.alertes.stock.niveau;
+    const rBadge = art.risque_global.couleur;
+    tr.innerHTML = `
+      <td class="col-matnr">${art.matnr}</td>
+      <td style="color:var(--muted)">${art.description}</td>
+      <td class="col-allw">${art.zmrko.PA_ALLW.valeur} %</td>
+      <td style="color:var(--muted);font-size:11px">${art.zmrko.PA_ALLW.interpretation}</td>
+      <td class="col-expam">${fmt(art.zmrko.PA_EXPAM.valeur)} €</td>
+      <td style="color:var(--muted);font-size:11px">${fmt(art.zmrko.PA_EXPAM.borne_basse,0)} – ${fmt(art.zmrko.PA_EXPAM.borne_haute,0)} €</td>
+      <td class="col-stock"><span class="badge ${badgeCssStock(stockBadge)}">${stockBadge}</span></td>
+      <td><span class="badge ${rBadge}">${art.risque_global.score}/100</span></td>
+    `;
+    tr.onclick = () => afficherArticle(art.matnr);
+    exportBody.appendChild(tr);
+  });
 
   // Sélecteur articles
   const selector = document.getElementById("articleSelector");
@@ -960,23 +509,21 @@ function afficherResultats(data) {
   });
 
   // Tableau classement
-  const sorted = [...articles].sort((a, b) => b.risque_global.score - a.risque_global.score);
+  const sorted = [...articles].sort((a,b) => b.risque_global.score - a.risque_global.score);
   const tbody = document.getElementById("tableauBody");
   tbody.innerHTML = "";
   sorted.forEach((art, i) => {
     const tr = document.createElement("tr");
     tr.onclick = () => afficherArticle(art.matnr);
     tr.innerHTML = `
-      <td style="color:var(--muted);font-family:var(--font-mono)">${i + 1}</td>
+      <td style="color:var(--muted);font-family:var(--font-mono)">${i+1}</td>
       <td><span class="matnr-mono">${art.matnr}</span></td>
       <td style="color:var(--muted)">${art.description}</td>
       <td style="font-family:var(--font-mono);color:var(--accent)">${art.zmrko.PA_ALLW.valeur} %</td>
-      <td style="font-family:var(--font-mono)">${art.zmrko.PA_EXPAM.valeur.toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €</td>
-      <td><span class="badge ${couleurCssStock(art.alertes.stock.niveau)}">${art.alertes.stock.niveau}</span></td>
+      <td style="font-family:var(--font-mono)">${fmt(art.zmrko.PA_EXPAM.valeur)} €</td>
+      <td><span class="badge ${badgeCssStock(art.alertes.stock.niveau)}">${art.alertes.stock.niveau}</span></td>
       <td style="text-align:center;font-family:var(--font-mono)">${art.stats.nb_anomalies}</td>
-      <td>
-        <span class="badge ${art.risque_global.couleur}">${art.risque_global.score}/100</span>
-      </td>
+      <td><span class="badge ${art.risque_global.couleur}">${art.risque_global.score}/100</span></td>
     `;
     tbody.appendChild(tr);
   });
@@ -985,140 +532,111 @@ function afficherResultats(data) {
   document.getElementById("uploadZone").style.display = "none";
   document.querySelector(".csv-helper").style.display = "none";
 
-  // Afficher le premier article
   if (articles.length > 0) afficherArticle(articles[0].matnr);
 }
 
-// ── Graphique article ─────────────────────────────────────────────────────────
+// ── Export CSV ZMRKO ──────────────────────────────────────────────────────────
+function exporterZMRKO() {
+  if (!donneesActuelles) return;
+  const articles = Object.values(donneesActuelles.articles);
+  const date = new Date().toISOString().split("T")[0];
 
-function afficherArticle(matnr) {
-  const art = donneesActuelles.articles[matnr];
-  if (!art) return;
-  articleActif = matnr;
+  let csv = "MATNR;Description;PA_ALLW_PCT;Interpretation_PA_ALLW;PA_EXPAM_EUR;Fourchette_basse_EUR;Fourchette_haute_EUR;Prix_unitaire_moyen;Stock_alerte;Jours_couverture;Score_risque;Niveau_risque;Date_calcul\n";
 
-  // Activer le bouton
-  document.querySelectorAll(".article-btn").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.matnr === matnr);
+  articles.forEach(art => {
+    csv += [
+      art.matnr,
+      `"${art.description}"`,
+      art.zmrko.PA_ALLW.valeur,
+      `"${art.zmrko.PA_ALLW.interpretation}"`,
+      art.zmrko.PA_EXPAM.valeur,
+      art.zmrko.PA_EXPAM.borne_basse,
+      art.zmrko.PA_EXPAM.borne_haute,
+      art.zmrko.PA_EXPAM.prix_unitaire_moyen,
+      art.alertes.stock.niveau,
+      art.alertes.stock.jours_couverture,
+      art.risque_global.score,
+      art.risque_global.niveau,
+      date,
+    ].join(";") + "\n";
   });
 
+  const blob = new Blob(["\uFEFF" + csv], {type:"text/csv;charset=utf-8;"});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = `ZMRKO_recommandations_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`✓ Export ZMRKO téléchargé (${articles.length} articles)`, "success");
+}
+
+// ── Graphique article ─────────────────────────────────────────────────────────
+function afficherArticle(matnr) {
+  const art = donneesActuelles?.articles[matnr];
+  if (!art) return;
+
+  document.querySelectorAll(".article-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.matnr === matnr);
+  });
   document.getElementById("articlePanel").style.display = "grid";
 
-  // Infos graphique
-  document.getElementById("chartTitle").textContent =
-    `${art.matnr} — ${art.description}`;
+  // Avertissement données courtes sur le graphique
+  const avertNote = art.avertissement ? ` ⚠️ ${art.avertissement}` : "";
+  document.getElementById("chartTitle").textContent = `${art.matnr} — ${art.description}`;
   document.getElementById("chartSub").textContent =
-    `${art.stats.nb_semaines} semaines d'historique · ${art.stats.nb_anomalies} anomalies détectées · Fournisseur ${art.fournisseur}`;
+    `${art.stats.nb_semaines} semaine(s) · ${art.stats.nb_anomalies} anomalie(s) · ${art.fournisseur}${avertNote}`;
+  document.getElementById("chartSub").style.color = art.avertissement ? "var(--warn)" : "var(--muted)";
 
-  // Construction des données
-  const hist = art.historique;
-  const prev = art.prevision_j30.par_semaine;
+  const hist = art.historique || [];
+  const prev = art.prevision_j30.par_semaine || [];
+  const anomDates = new Set((art.anomalies||[]).map(a=>a.ds));
+  const allLabels = [...hist.map(p=>p.ds), ...prev.map(p=>p.ds)];
 
-  const labelsHist = hist.map(p => p.ds);
-  const valHist    = hist.map(p => p.y);
-  const anomDates  = new Set(art.anomalies.map(a => a.ds));
-
-  const labelsPrev = prev.map(p => p.ds);
-  const valPrev    = prev.map(p => p.yhat);
-  const valBasse   = prev.map(p => p.yhat_lower);
-  const valHaute   = prev.map(p => p.yhat_upper);
-
-  const allLabels  = [...labelsHist, ...labelsPrev];
-
-  // Points anomalies
-  const anomPoints = hist.map((p, i) => anomDates.has(p.ds) ? p.y : null);
-
-  // Graphique
   if (chartInstance) chartInstance.destroy();
   const ctx = document.getElementById("forecastChart").getContext("2d");
-
   chartInstance = new Chart(ctx, {
-    type: "line",
-    data: {
+    type:"line",
+    data:{
       labels: allLabels,
-      datasets: [
+      datasets:[
         {
-          label: "Consommation réelle",
-          data: [...valHist, ...Array(prev.length).fill(null)],
-          borderColor: "#4A9EFF",
-          backgroundColor: "transparent",
-          borderWidth: 1.5,
-          pointRadius: 0,
-          tension: 0.3,
+          label:"Consommation réelle",
+          data:[...hist.map(p=>p.y), ...Array(prev.length).fill(null)],
+          borderColor:"#4A9EFF",backgroundColor:"transparent",borderWidth:1.5,pointRadius:0,tension:0.3,
         },
         {
-          label: "Anomalies",
-          data: [...anomPoints, ...Array(prev.length).fill(null)],
-          borderColor: "transparent",
-          backgroundColor: "#f05252",
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          type: "scatter",
-          showLine: false,
+          label:"Anomalies",
+          data:[...hist.map(p => anomDates.has(p.ds) ? p.y : null), ...Array(prev.length).fill(null)],
+          borderColor:"transparent",backgroundColor:"#f05252",pointRadius:5,type:"scatter",showLine:false,
         },
         {
-          label: "Prévision J+30",
-          data: [...Array(hist.length).fill(null), ...valPrev],
-          borderColor: "#00D4AA",
-          backgroundColor: "transparent",
-          borderWidth: 2,
-          borderDash: [5, 4],
-          pointRadius: 3,
-          tension: 0.3,
+          label:"Prévision J+30",
+          data:[...Array(hist.length).fill(null), ...prev.map(p=>p.yhat)],
+          borderColor:"#00D4AA",backgroundColor:"transparent",borderWidth:2,borderDash:[5,4],pointRadius:3,tension:0.3,
         },
         {
-          label: "Borne haute",
-          data: [...Array(hist.length).fill(null), ...valHaute],
-          borderColor: "transparent",
-          backgroundColor: "rgba(0,212,170,0.12)",
-          fill: "+1",
-          pointRadius: 0,
+          label:"Intervalle",
+          data:[...Array(hist.length).fill(null), ...prev.map(p=>p.yhat_upper)],
+          borderColor:"transparent",backgroundColor:"rgba(0,212,170,0.12)",fill:"+1",pointRadius:0,
         },
         {
-          label: "Borne basse",
-          data: [...Array(hist.length).fill(null), ...valBasse],
-          borderColor: "transparent",
-          backgroundColor: "rgba(0,212,170,0.12)",
-          fill: false,
-          pointRadius: 0,
+          label:"Borne basse",
+          data:[...Array(hist.length).fill(null), ...prev.map(p=>p.yhat_lower)],
+          borderColor:"transparent",backgroundColor:"rgba(0,212,170,0.12)",fill:false,pointRadius:0,
         },
       ],
     },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
-      plugins: {
-        legend: {
-          labels: {
-            color: "#6b7280",
-            font: { size: 11 },
-            boxWidth: 12,
-            filter: item => item.label !== "Borne haute" && item.label !== "Borne basse",
-          },
-        },
-        tooltip: {
-          backgroundColor: "#181b22",
-          borderColor: "#1e2230",
-          borderWidth: 1,
-          titleColor: "#e8eaf0",
-          bodyColor: "#9ca3af",
-        },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:"index",intersect:false},
+      plugins:{
+        legend:{labels:{color:"#6b7280",font:{size:11},boxWidth:12,filter:i=>i.label!=="Intervalle"&&i.label!=="Borne basse"}},
+        tooltip:{backgroundColor:"#181b22",borderColor:"#1e2230",borderWidth:1,titleColor:"#e8eaf0",bodyColor:"#9ca3af"},
       },
-      scales: {
-        x: {
-          ticks: {
-            color: "#6b7280",
-            font: { size: 10, family: "'JetBrains Mono', monospace" },
-            maxTicksLimit: 10,
-            maxRotation: 30,
-          },
-          grid: { color: "#1e2230" },
-        },
-        y: {
-          ticks: { color: "#6b7280", font: { size: 10 } },
-          grid: { color: "#1e2230" },
-          title: { display: true, text: "Unités", color: "#6b7280", font: { size: 10 } },
-        },
+      scales:{
+        x:{ticks:{color:"#6b7280",font:{size:10,family:"'JetBrains Mono',monospace"},maxTicksLimit:10,maxRotation:30},grid:{color:"#1e2230"}},
+        y:{ticks:{color:"#6b7280",font:{size:10}},grid:{color:"#1e2230"},title:{display:true,text:"Unités",color:"#6b7280",font:{size:10}}},
       },
     },
   });
@@ -1127,27 +645,25 @@ function afficherArticle(matnr) {
   const allw = art.zmrko.PA_ALLW;
   document.getElementById("recoAllw").textContent = `${allw.valeur} %`;
   document.getElementById("recoAllwRange").textContent =
-    `Base : ${allw.valeur} % · ${art.stats.nb_anomalies} anomalies détectées`;
+    `Base variabilité · ${art.stats.nb_anomalies} anomalie(s) détectée(s)`;
   document.getElementById("recoAllwInterp").textContent = allw.interpretation;
 
   // PA_EXPAM
   const expam = art.zmrko.PA_EXPAM;
-  document.getElementById("recoExpam").textContent =
-    expam.valeur.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €";
+  document.getElementById("recoExpam").textContent = `${fmt(expam.valeur)} €`;
   document.getElementById("recoExpamRange").textContent =
-    `Fourchette : ${expam.borne_basse.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} € — ` +
-    `${expam.borne_haute.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} €`;
+    `Fourchette : ${fmt(expam.borne_basse,0)} € — ${fmt(expam.borne_haute,0)} €`;
   document.getElementById("recoExpamInterp").textContent =
-    `${art.prevision_j30.total_units} unités × ${expam.prix_unitaire_moyen} €/u (prix moy. historique)`;
+    `${art.prevision_j30.total_units} unités × ${expam.prix_unitaire_moyen} €/u`;
 
   // Alerte stock
   const stock = art.alertes.stock;
   const alerteDiv = document.getElementById("alerteStock");
-  alerteDiv.className = `alerte-stock ${couleurCssStock(stock.niveau) === "ok" ? "ok" : couleurCssStock(stock.niveau) === "danger" ? "danger" : "warn"}`;
+  alerteDiv.className = `alerte-stock ${badgeCssStock(stock.niveau)==="rouge"?"danger":badgeCssStock(stock.niveau)==="orange"?"warn":"ok"}`;
   document.getElementById("alerteIcon").textContent = iconeStock(stock.niveau);
   document.getElementById("alerteMsg").textContent  = stock.message;
 
-  // Risque
+  // Risque + détail
   const risque = art.risque_global;
   document.getElementById("riskScore").textContent  = risque.score;
   document.getElementById("riskNiveau").textContent = risque.niveau;
@@ -1156,10 +672,26 @@ function afficherArticle(matnr) {
   document.getElementById("gaugeFill").style.width       = `${risque.score}%`;
   document.getElementById("gaugeFill").style.background  = couleurRisque(risque.score);
 
-  document.getElementById("articlePanel").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  // Détail composantes score
+  const detail = document.getElementById("riskDetail");
+  const composantes = [
+    {label:"Stock",     val:risque.score * 0.55, max:40, color:"#f05252"},
+    {label:"Anomalies", val:Math.min(20, art.stats.nb_anomalies*2), max:20, color:"#f59e0b"},
+    {label:"Tolérance", val:Math.min(10, allw.valeur/2.5), max:10, color:"#e8b84b"},
+  ];
+  detail.innerHTML = composantes.map(c => `
+    <div class="risk-bar-row">
+      <span class="risk-bar-label">${c.label}</span>
+      <div class="risk-bar-track">
+        <div class="risk-bar-fill" style="width:${(c.val/c.max)*100}%;background:${c.color}"></div>
+      </div>
+      <span class="risk-bar-val">${c.val.toFixed(1)}/${c.max}</span>
+    </div>
+  `).join("");
+
+  document.getElementById("articlePanel").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 checkAPI();
 </script>
 </body>
