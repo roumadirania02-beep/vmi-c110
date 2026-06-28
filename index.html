@@ -642,9 +642,9 @@
       ou cliquez pour parcourir
     </div>
     <button class="btn btn-primary" onclick="event.stopPropagation();document.getElementById('fileInput').click()">
-      Choisir un fichier CSV
+      Choisir un fichier CSV ou XLSX
     </button>
-    <input type="file" id="fileInput" class="upload-input" accept=".csv" onchange="handleFile(event)">
+    <input type="file" id="fileInput" class="upload-input" accept=".csv,.xlsx,.xls" onchange="handleFile(event)">
     <div class="progress-bar" id="progressBar"></div>
   </div>
 
