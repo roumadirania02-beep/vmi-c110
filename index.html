@@ -879,9 +879,9 @@ function handleFile(e) {
 }
 
 async function analyserFichier(file) {
-  if (!file.name.endsWith(".csv")) {
-    toast("Le fichier doit être un CSV (.csv)", "error"); return;
-  }
+  if (!file.name.endsWith(".csv") && !file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
+    toast("Format accepté : .csv ou .xlsx", "error"); return;
+}
 
   loader(true, `Envoi de ${file.name}…`);
   document.getElementById("uploadZone").classList.add("loading");
