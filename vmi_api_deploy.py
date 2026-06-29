@@ -1,18 +1,18 @@
 """
 VMI Intelligence API — Version déployable (Railway / Render)
 Projet Motul — Ticket 38998
- 
+
 Accepte deux formats d'entrée :
   1. CSV synthétique (colonnes : MATNR;LIFNR;BUDAT;MENGE;WERTN)
   2. Export Excel SAP réel (SE16 → RKWA) — converti automatiquement
- 
+
 Endpoints :
   GET  /              → healthcheck
   POST /api/analyze   → upload CSV ou XLSX → prévisions + recommandations ZMRKO
   GET  /api/demo      → analyse sur données synthétiques intégrées
   GET  /api/zmrko/{matnr} → champs PA_ALLW + PA_EXPAM pour intégration ABAP
 """
- 
+
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
@@ -20,21 +20,21 @@ import numpy as np
 import io
 import json
 from datetime import datetime, timedelta
- 
+
 app = FastAPI(
     title="VMI Intelligence API — Motul",
     description="Analyse VMI. Upload export SAP (XLSX ou CSV) → prévisions J+30 + recommandations ZMRKO.",
     version="3.0.0",
     docs_url="/docs",
 )
- 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
- 
+
 # ── Mapping colonnes SAP réel → colonnes internes ────────────────────────────
 MAPPING_SAP = {
     "Article":                              "MATNR",
@@ -49,9 +49,9 @@ MAPPING_SAP = {
     "MENGE": "MENGE",
     "WERTN": "WERTN",
 }
- 
+
 DESCRIPTIONS_SAP = {}  # enrichi dynamiquement depuis les données réelles
- 
+
 def generer_donnees_demo() -> pd.DataFrame:
     np.random.seed(42)
     articles = [f"MAT-{i:03d}" for i in range(1, 11)]
@@ -73,9 +73,9 @@ def generer_donnees_demo() -> pd.DataFrame:
                 "WERTN": round(menge * prix[matnr], 2),
             })
     return pd.DataFrame(rows)
- 
+
 # ── Convertisseur universel SAP → format interne ─────────────────────────────
- 
+
 def convertir_export_sap(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Accepte un DataFrame brut (export SE16 SAP ou CSV synthétique)
@@ -83,7 +83,7 @@ def convertir_export_sap(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     # Renommer les colonnes SAP françaises vers noms internes
     df = df_raw.rename(columns=MAPPING_SAP)
- 
+
     # Vérifier colonnes minimales requises
     colonnes_requises = {"MATNR", "BUDAT", "MENGE"}
     manquantes = colonnes_requises - set(df.columns)
@@ -92,36 +92,36 @@ def convertir_export_sap(df_raw: pd.DataFrame) -> pd.DataFrame:
             f"Colonnes introuvables : {manquantes}. "
             f"Colonnes présentes : {list(df_raw.columns)}"
         )
- 
+
     # LIFNR optionnel
     if "LIFNR" not in df.columns:
         df["LIFNR"] = "INCONNU"
- 
+
     # WERTN optionnel
     if "WERTN" not in df.columns:
         df["WERTN"] = 0.0
- 
+
     # Conversion types
     df["BUDAT"] = pd.to_datetime(df["BUDAT"], infer_datetime_format=True, errors="coerce")
     df["MENGE"] = pd.to_numeric(df["MENGE"], errors="coerce").fillna(0).abs()
     df["WERTN"] = pd.to_numeric(df["WERTN"], errors="coerce").fillna(0).abs()
     df["MATNR"] = df["MATNR"].astype(str).str.strip()
     df["LIFNR"] = df["LIFNR"].astype(str).str.strip()
- 
+
     df = df.dropna(subset=["BUDAT"])
     df = df[df["MENGE"] > 0]
- 
+
     return df[["MATNR", "LIFNR", "BUDAT", "MENGE", "WERTN"]]
- 
+
 # ── Moteur d'analyse ─────────────────────────────────────────────────────────
- 
+
 def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
     articles = sorted(df["MATNR"].unique())
     resultats = {}
- 
+
     for matnr in articles:
         sub = df[df["MATNR"] == matnr].copy()
- 
+
         # Série hebdomadaire
         serie = (
             sub.set_index("BUDAT")["MENGE"]
@@ -129,13 +129,13 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
             .reset_index()
         )
         serie.columns = ["ds", "y"]
- 
+
         nb_semaines = len(serie)
         donnees_insuffisantes = nb_semaines < 4
- 
+
         y = serie["y"].values
         n = len(y)
- 
+
         if donnees_insuffisantes:
             # Prévision simple sur données courtes : moyenne des données disponibles
             moy = float(np.mean(y)) if n > 0 else 0
@@ -176,7 +176,7 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
             borne_basse = round(sum(s["yhat_lower"] for s in prevision_semaines), 1)
             borne_haute = round(sum(s["yhat_upper"] for s in prevision_semaines), 1)
             avertissement = None
- 
+
         # Anomalies
         anomalies = []
         if not donnees_insuffisantes:
@@ -192,12 +192,58 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
                         "z_score": round(z, 2),
                         "type_anomalie": "pic" if z > 0 else "creux",
                     })
- 
+
         # Stats
         moy_hebdo = round(float(np.mean(y)), 1) if len(y) > 0 else 0
         std_hebdo = round(float(np.std(y)), 1)  if len(y) > 0 else 0
         cv = std_hebdo / moy_hebdo if moy_hebdo > 0 else 0.1
- 
+
+        # ── Tendance de consommation ─────────────────────────────────────────
+        # Compare moyenne des 4 dernières semaines vs 4 semaines précédentes
+        if n >= 8:
+            periode_recente = float(np.mean(y[-4:]))
+            periode_passee  = float(np.mean(y[-8:-4]))
+            if periode_passee > 0:
+                variation_pct = round((periode_recente - periode_passee) / periode_passee * 100, 1)
+            else:
+                variation_pct = 0.0
+
+            if variation_pct > 10:
+                tendance_direction = "HAUSSE"
+                tendance_icone     = "📈"
+                tendance_couleur   = "danger"
+                tendance_message   = f"Consommation en hausse — anticiper réapprovisionnement"
+            elif variation_pct < -10:
+                tendance_direction = "BAISSE"
+                tendance_icone     = "📉"
+                tendance_couleur   = "warn"
+                tendance_message   = f"Consommation en baisse — risque de surstock"
+            else:
+                tendance_direction = "STABLE"
+                tendance_icone     = "➡️"
+                tendance_couleur   = "ok"
+                tendance_message   = f"Consommation stable — situation normale"
+
+            tendance = {
+                "direction":   tendance_direction,
+                "icone":       tendance_icone,
+                "variation_pct": variation_pct,
+                "couleur":     tendance_couleur,
+                "message":     tendance_message,
+                "periode_recente_moy": round(periode_recente, 1),
+                "periode_passee_moy":  round(periode_passee, 1),
+            }
+        else:
+            tendance = {
+                "direction":   "INCONNU",
+                "icone":       "❓",
+                "variation_pct": 0,
+                "couleur":     "muted",
+                "message":     "Données insuffisantes pour calculer la tendance (min. 8 semaines)",
+                "periode_recente_moy": round(float(np.mean(y[-4:])), 1) if n >= 4 else 0,
+                "periode_passee_moy":  0,
+            }
+
         # PA_ALLW
         base_allw   = round(min(25.0, max(2.0, cv * 100 * 0.8)), 1)
         bonus_anom  = max(0, (len(anomalies) - 5) // 3) * 2.0
@@ -207,26 +253,26 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
             "Tolérance modérée — légère variabilité"   if pa_allw_val <= 12 else
             "Tolérance large — consommation instable"
         )
- 
+
         # PA_EXPAM
         total_menge = sub["MENGE"].sum()
         total_wertn = sub["WERTN"].sum()
         prix_moyen  = (total_wertn / total_menge) if total_menge > 0 else 0
         pa_expam_val = round(total_j30 * prix_moyen, 2)
- 
+
         # Alerte stock
         stock_estime = float(serie["y"].iloc[-4:].sum()) * 0.6 if len(serie) >= 4 else moy_hebdo * 2
         ratio_stock  = stock_estime / total_j30 if total_j30 > 0 else 999
         jours_stock  = round(stock_estime / (total_j30 / 30), 1) if total_j30 > 0 else 999
         niveau_stock = "CRITIQUE" if ratio_stock < 0.2 else "ATTENTION" if ratio_stock < 0.5 else "OK"
- 
+
         # Score risque
         s_stock = {"OK": 0, "ATTENTION": 20, "CRITIQUE": 40}[niveau_stock]
         s_anom  = min(20, len(anomalies) * 2)
         s_tol   = min(10, pa_allw_val / 2.5)
         score_risque  = round(s_stock + s_anom + s_tol, 1)
         niveau_risque = "FAIBLE" if score_risque < 25 else "MODÉRÉ" if score_risque < 55 else "ÉLEVÉ"
- 
+
         # Historique pour graphique
         historique = [
             {
@@ -236,10 +282,10 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
             }
             for _, row in serie.iterrows()
         ]
- 
+
         lifnr = str(sub["LIFNR"].iloc[0]) if len(sub) > 0 else "INCONNU"
         desc  = DESCRIPTIONS_SAP.get(matnr, matnr)
- 
+
         resultats[matnr] = {
             "matnr":       matnr,
             "description": desc,
@@ -293,17 +339,18 @@ def analyser_csv(df: pd.DataFrame, source: str = "") -> dict:
             },
             "historique": historique[-52:],
             "anomalies":  anomalies,
+            "tendance":   tendance,
         }
- 
+
     return resultats
- 
+
 # ── Routes ───────────────────────────────────────────────────────────────────
- 
+
 @app.get("/")
 def healthcheck():
     return {"status": "ok", "service": "VMI Intelligence API — Motul", "version": "3.0.0",
             "timestamp": datetime.now().isoformat()}
- 
+
 @app.post("/api/analyze")
 async def analyser(file: UploadFile = File(...)):
     """
@@ -312,7 +359,7 @@ async def analyser(file: UploadFile = File(...)):
     """
     contenu = await file.read()
     nom = file.filename.lower()
- 
+
     try:
         if nom.endswith(".xlsx") or nom.endswith(".xls"):
             df_raw = pd.read_excel(io.BytesIO(contenu))
@@ -330,24 +377,24 @@ async def analyser(file: UploadFile = File(...)):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Erreur lecture fichier : {e}")
- 
+
     try:
         df = convertir_export_sap(df_raw)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
- 
+
     resultats = analyser_csv(df, source=file.filename)
- 
+
     nb_alertes = sum(1 for r in resultats.values() if r["alertes"]["stock"]["niveau"] != "OK")
     total_j30  = sum(r["prevision_j30"]["total_units"] for r in resultats.values())
     risque_max = max((r["risque_global"]["score"] for r in resultats.values()), default=0)
- 
+
     # Avertissements données courtes
     avertissements = [
         f"{m} : {r['avertissement']}"
         for m, r in resultats.items() if r.get("avertissement")
     ]
- 
+
     return {
         "meta": {
             "fichier":         file.filename,
@@ -360,7 +407,7 @@ async def analyser(file: UploadFile = File(...)):
         },
         "articles": resultats,
     }
- 
+
 @app.get("/api/demo")
 def demo():
     df = generer_donnees_demo()
@@ -377,7 +424,7 @@ def demo():
         },
         "articles": resultats,
     }
- 
+
 @app.get("/api/zmrko/{matnr}")
 def zmrko_article(matnr: str):
     df = generer_donnees_demo()
@@ -393,4 +440,3 @@ def zmrko_article(matnr: str):
         "alertes": r["alertes"],
         "risque_global": r["risque_global"],
     }
- 
